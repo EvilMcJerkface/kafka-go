@@ -224,15 +224,15 @@ func TestConn(t *testing.T) {
 			function: testConnFetchAndCommitOffsets,
 		},
 
-		{
-			scenario: "test delete topics",
-			function: testDeleteTopics,
-		},
+		//{
+		//	scenario: "test delete topics",
+		//	function: testDeleteTopics,
+		//},
 
-		{
-			scenario: "test delete topics with an invalid topic",
-			function: testDeleteTopicsInvalidTopic,
-		},
+		//{
+		//	scenario: "test delete topics with an invalid topic",
+		//	function: testDeleteTopicsInvalidTopic,
+		//},
 
 		{
 			scenario: "test api version",
@@ -846,6 +846,7 @@ func testConnReadEmptyWithDeadline(t *testing.T, conn *Conn) {
 }
 
 func testDeleteTopics(t *testing.T, conn *Conn) {
+	fmt.Println("delete topics !")
 	topic1 := makeTopic()
 	topic2 := makeTopic()
 	err := conn.CreateTopics(
