@@ -161,9 +161,6 @@ type createTopicsResponseV0TopicError struct {
 
 	// ErrorCode holds response error code
 	ErrorCode int16
-
-	// ErrorMessage holds the response error message
-	ErrorMessage string
 }
 
 func (t createTopicsResponseV0TopicError) size() int32 {
@@ -202,13 +199,14 @@ func (t createTopicsResponseV0) writeTo(w *bufio.Writer) {
 func (t *createTopicsResponseV0) readFrom(r *bufio.Reader, size int) (remain int, err error) {
 	fn := func(r *bufio.Reader, size int) (fnRemain int, fnErr error) {
 		var topic createTopicsResponseV0TopicError
-		if fnRemain, fnErr = (&topic).readFrom(r, size); err != nil {
+		if fnRemain, fnErr = (&topic).readFrom(r, size); fnErr != nil {
 			return
 		}
 		t.TopicErrors = append(t.TopicErrors, topic)
 		return
 	}
-	if remain, err = readArrayWith(r, remain, fn); err != nil {
+
+	if remain, err = readArrayWith(r, size, fn); err != nil {
 		return
 	}
 
@@ -358,7 +356,7 @@ func (t *createTopicsResponseV2) readFrom(r *bufio.Reader, size int) (remain int
 
 	fn := func(r *bufio.Reader, size int) (fnRemain int, fnErr error) {
 		var topic createTopicsResponseV2TopicError
-		if fnRemain, fnErr = (&topic).readFrom(r, size); err != nil {
+		if fnRemain, fnErr = (&topic).readFrom(r, size); fnErr != nil {
 			return
 		}
 		t.TopicErrors = append(t.TopicErrors, topic)
