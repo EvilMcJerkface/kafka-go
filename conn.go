@@ -176,6 +176,9 @@ func (c *Conn) describeGroups(request describeGroupsRequestV1) (describeGroupsRe
 	return response, nil
 }
 
+// findCoordinator finds the coordinator for the specified group or transaction
+//
+// See http://kafka.apache.org/protocol.html#The_Messages_FindCoordinator
 func (c *Conn) findCoordinator(groupID string) (Coordinator, error) {
 	findCoordinatorApiVersion, err := c.apiVersion(findCoordinatorRequest)
 	if err != nil {
@@ -204,9 +207,6 @@ func (c *Conn) findCoordinator(groupID string) (Coordinator, error) {
 	}
 }
 
-// findCoordinatorV1 finds the coordinator for the specified group or transaction
-//
-// See http://kafka.apache.org/protocol.html#The_Messages_FindCoordinator
 func (c *Conn) findCoordinatorV1(request findCoordinatorRequestV1) (findCoordinatorResponseV1, error) {
 	var response findCoordinatorResponseV1
 
@@ -285,7 +285,88 @@ func (c *Conn) heartbeat(request heartbeatRequestV1) (heartbeatResponseV1, error
 // joinGroup attempts to join a consumer group
 //
 // See http://kafka.apache.org/protocol.html#The_Messages_JoinGroup
-func (c *Conn) joinGroup(request joinGroupRequestV2) (joinGroupResponseV2, error) {
+//TODO: how to pass other requests parameters ? specific struct ?
+func (c *Conn) joinGroup(config joinGroupConfig) (consumerGroup, error) {
+	joinGroupApiVersion, err := c.apiVersion(joinGroupRequest)
+	if err != nil {
+		return consumerGroup{}, err
+	}
+
+	switch {
+	case joinGroupApiVersion >= v2:
+		groupProtocols := make([]joinGroupRequestGroupProtocolV2, len(config.GroupProtocols))
+		for _, gp := range config.GroupProtocols {
+			groupProtocols = append(groupProtocols, joinGroupRequestGroupProtocolV2{
+				ProtocolName:     gp.ProtocolName,
+				ProtocolMetadata: gp.ProtocolMetadata,
+			})
+		}
+
+		jg, err := c.joinGroupV2(joinGroupRequestV2{
+			GroupID:          config.GroupID,
+			SessionTimeout:   config.SessionTimeout,
+			RebalanceTimeout: config.RebalanceTimeout,
+			ProtocolType:     config.ProtocolType,
+			GroupProtocols:   groupProtocols,
+		})
+		if err != nil {
+			return consumerGroup{}, err
+		}
+
+		var members []consumerGroupMember
+		for _, m := range jg.Members {
+			members = append(members, consumerGroupMember{
+				MemberID:       m.MemberID,
+				MemberMetadata: m.MemberMetadata,
+			})
+		}
+
+		return consumerGroup{
+			MemberID:      jg.MemberID,
+			GenerationID:  jg.GenerationID,
+			LeaderID:      jg.LeaderID,
+			GroupProtocol: jg.GroupProtocol,
+			Members:       members,
+		}, nil
+	default:
+		groupProtocols := make([]joinGroupRequestGroupProtocolV1, len(config.GroupProtocols))
+		for _, gp := range config.GroupProtocols {
+			groupProtocols = append(groupProtocols, joinGroupRequestGroupProtocolV1{
+				ProtocolName:     gp.ProtocolName,
+				ProtocolMetadata: gp.ProtocolMetadata,
+			})
+		}
+
+		jg, err := c.joinGroupV1(joinGroupRequestV1{
+			GroupID:          config.GroupID,
+			SessionTimeout:   config.SessionTimeout,
+			RebalanceTimeout: config.RebalanceTimeout,
+			ProtocolType:     config.ProtocolType,
+			GroupProtocols:   groupProtocols,
+		})
+		if err != nil {
+			return consumerGroup{}, err
+		}
+
+		var members []consumerGroupMember
+		for _, m := range jg.Members {
+			members = append(members, consumerGroupMember{
+				MemberID:       m.MemberID,
+				MemberMetadata: m.MemberMetadata,
+			})
+		}
+
+		return consumerGroup{
+			MemberID:      jg.MemberID,
+			GenerationID:  jg.GenerationID,
+			LeaderID:      jg.LeaderID,
+			GroupProtocol: jg.GroupProtocol,
+			Members:       members,
+		}, nil
+	}
+}
+
+func (c *Conn) joinGroupV2(request joinGroupRequestV2) (joinGroupResponseV2, error) {
 	var response joinGroupResponseV2
 
 	err := c.writeOperation(
@@ -303,6 +384,29 @@ func (c *Conn) joinGroup(request joinGroupRequestV2) (joinGroupResponseV2, error
 	}
 	if response.ErrorCode != 0 {
 		return joinGroupResponseV2{}, Error(response.ErrorCode)
+	}
+
+	return response, nil
+}
+
+func (c *Conn) joinGroupV1(request joinGroupRequestV1) (joinGroupResponseV1, error) {
+	var response joinGroupResponseV1
+
+	err := c.writeOperation(
+		func(deadline time.Time, id int32) error {
+			return c.writeRequest(joinGroupRequest, v1, id, request)
+		},
+		func(deadline time.Time, size int) error {
+			return expectZeroSize(func() (remain int, err error) {
+				return (&response).readFrom(&c.rbuf, size)
+			}())
+		},
+	)
+	if err != nil {
+		return joinGroupResponseV1{}, err
+	}
+	if response.ErrorCode != 0 {
+		return joinGroupResponseV1{}, Error(response.ErrorCode)
 	}
 
 	return response, nil
