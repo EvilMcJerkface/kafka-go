@@ -906,8 +906,8 @@ func testApiVersion(t *testing.T, conn *Conn) {
 	if err != nil {
 		t.Fatalf("bad apiVersion: %v", err)
 	}
-	if len(conn.apiVersions) < 38 {
-		t.Fatal("expected at least 38 API keys")
+	if len(conn.apiVersions) == 0 {
+		t.Fatal("expected at least 1 API key")
 	}
 }
 
