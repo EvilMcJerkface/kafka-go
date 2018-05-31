@@ -574,7 +574,7 @@ func testConnFindCoordinator(t *testing.T, conn *Conn) {
 		if attempt != 0 {
 			time.Sleep(time.Millisecond * 50)
 		}
-		response, err := conn.findCoordinatorV1(findCoordinatorRequestV1{CoordinatorKey: groupID})
+		coordinator, err := conn.findCoordinator(groupID)
 		if err != nil {
 			switch err {
 			case GroupCoordinatorNotAvailable:
@@ -584,13 +584,13 @@ func testConnFindCoordinator(t *testing.T, conn *Conn) {
 			}
 		}
 
-		if response.Coordinator.NodeID == 0 {
+		if coordinator.NodeID == 0 {
 			t.Errorf("bad NodeID")
 		}
-		if response.Coordinator.Host == "" {
+		if coordinator.Host == "" {
 			t.Errorf("bad Host")
 		}
-		if response.Coordinator.Port == 0 {
+		if coordinator.Port == 0 {
 			t.Errorf("bad Port")
 		}
 		return
