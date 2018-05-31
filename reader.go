@@ -125,14 +125,12 @@ func (r *Reader) lookupCoordinator() (string, error) {
 	}
 	defer conn.Close()
 
-	out, err := conn.findCoordinatorV1(findCoordinatorRequestV1{
-		CoordinatorKey: r.config.GroupID,
-	})
+	coordinator, err := conn.findCoordinator(r.config.GroupID)
 	if err != nil {
 		return "", fmt.Errorf("unable to find coordinator for group, %v: %v", r.config.GroupID, err)
 	}
 
-	address := fmt.Sprintf("%v:%v", out.Coordinator.Host, out.Coordinator.Port)
+	address := fmt.Sprintf("%v:%v", coordinator.Host, coordinator.Port)
 	return address, nil
 }
 
@@ -259,10 +257,7 @@ func (r *Reader) assignTopicPartitions(conn partitionReader, group consumerGroup
 
 func (r *Reader) leaveGroup(conn *Conn) error {
 	_, memberID := r.membership()
-	_, err := conn.leaveGroup(leaveGroupRequestV1{
-		GroupID:  r.config.GroupID,
-		MemberID: memberID,
-	})
+	err := conn.leaveGroup(memberID, r.config.GroupID)
 	if err != nil {
 		return fmt.Errorf("leave group failed for group, %v, and member, %v: %v", r.config.GroupID, memberID, err)
 	}

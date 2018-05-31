@@ -294,7 +294,7 @@ func (c *Conn) joinGroup(config joinGroupConfig) (consumerGroup, error) {
 
 	switch {
 	case joinGroupApiVersion >= v2:
-		groupProtocols := make([]joinGroupRequestGroupProtocolV2, len(config.GroupProtocols))
+		var groupProtocols []joinGroupRequestGroupProtocolV2
 		for _, gp := range config.GroupProtocols {
 			groupProtocols = append(groupProtocols, joinGroupRequestGroupProtocolV2{
 				ProtocolName:     gp.ProtocolName,
@@ -329,7 +329,7 @@ func (c *Conn) joinGroup(config joinGroupConfig) (consumerGroup, error) {
 			Members:       members,
 		}, nil
 	default:
-		groupProtocols := make([]joinGroupRequestGroupProtocolV1, len(config.GroupProtocols))
+		var groupProtocols []joinGroupRequestGroupProtocolV1
 		for _, gp := range config.GroupProtocols {
 			groupProtocols = append(groupProtocols, joinGroupRequestGroupProtocolV1{
 				ProtocolName:     gp.ProtocolName,
@@ -415,7 +415,29 @@ func (c *Conn) joinGroupV1(request joinGroupRequestV1) (joinGroupResponseV1, err
 // leaveGroup leaves the consumer from the consumer group
 //
 // See http://kafka.apache.org/protocol.html#The_Messages_LeaveGroup
-func (c *Conn) leaveGroup(request leaveGroupRequestV1) (leaveGroupResponseV1, error) {
+func (c *Conn) leaveGroup(memberID, groupID string) error {
+	leaveGroupApiVersion, err := c.apiVersion(leaveGroupRequest)
+	if err != nil {
+		return err
+	}
+
+	switch {
+	case leaveGroupApiVersion >= v1:
+		_, err := c.leaveGroupV1(leaveGroupRequestV1{
+			MemberID: memberID,
+			GroupID:  groupID,
+		})
+		return err
+	default:
+		_, err := c.leaveGroupV0(leaveGroupRequestV0{
+			MemberID: memberID,
+			GroupID:  groupID,
+		})
+		return err
+	}
+}
+
+func (c *Conn) leaveGroupV1(request leaveGroupRequestV1) (leaveGroupResponseV1, error) {
 	var response leaveGroupResponseV1
 
 	err := c.writeOperation(
@@ -433,6 +455,29 @@ func (c *Conn) leaveGroup(request leaveGroupRequestV1) (leaveGroupResponseV1, er
 	}
 	if response.ErrorCode != 0 {
 		return leaveGroupResponseV1{}, Error(response.ErrorCode)
+	}
+
+	return response, nil
+}
+
+func (c *Conn) leaveGroupV0(request leaveGroupRequestV0) (leaveGroupResponseV0, error) {
+	var response leaveGroupResponseV0
+
+	err := c.writeOperation(
+		func(deadline time.Time, id int32) error {
+			return c.writeRequest(leaveGroupRequest, v0, id, request)
+		},
+		func(deadline time.Time, size int) error {
+			return expectZeroSize(func() (remain int, err error) {
+				return (&response).readFrom(&c.rbuf, size)
+			}())
+		},
+	)
+	if err != nil {
+		return leaveGroupResponseV0{}, err
+	}
+	if response.ErrorCode != 0 {
+		return leaveGroupResponseV0{}, Error(response.ErrorCode)
 	}
 
 	return response, nil

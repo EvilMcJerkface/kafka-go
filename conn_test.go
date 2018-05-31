@@ -538,10 +538,7 @@ func createGroup(t *testing.T, conn *Conn, groupID string) (generationID int32, 
 	generationID = group.GenerationID
 	memberID = group.MemberID
 	stop = func() {
-		conn.leaveGroup(leaveGroupRequestV1{
-			GroupID:  groupID,
-			MemberID: memberID,
-		})
+		conn.leaveGroup(memberID, groupID)
 	}
 
 	return
@@ -645,9 +642,7 @@ func testConnLeaveGroupErr(t *testing.T, conn *Conn) {
 	groupID := makeGroupID()
 	waitForCoordinator(t, conn, groupID)
 
-	_, err := conn.leaveGroup(leaveGroupRequestV1{
-		GroupID: groupID,
-	})
+	err := conn.leaveGroup(groupID, "")
 	if err != UnknownMemberId && err != NotCoordinatorForGroup {
 		t.Fatalf("expected %v or %v; got %v", UnknownMemberId, NotCoordinatorForGroup, err)
 	}
