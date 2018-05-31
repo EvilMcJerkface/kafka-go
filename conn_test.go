@@ -472,9 +472,7 @@ func waitForCoordinator(t *testing.T, conn *Conn, groupID string) {
 	// appear to happen if the kafka been running for a while.
 	const maxAttempts = 20
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		_, err := conn.findCoordinatorV1(findCoordinatorRequestV1{
-			CoordinatorKey: groupID,
-		})
+		_, err := conn.findCoordinator(groupID)
 		switch err {
 		case nil:
 			return
@@ -906,6 +904,9 @@ func testApiVersion(t *testing.T, conn *Conn) {
 	_, err := conn.apiVersion(listOffsetRequest)
 	if err != nil {
 		t.Fatalf("bad apiVersion: %v", err)
+	}
+	for api, ver := range conn.apiVersions {
+		fmt.Printf("%s %d\n", api, ver)
 	}
 	if len(conn.apiVersions) == 0 {
 		t.Fatal("expected at least 1 API key")
