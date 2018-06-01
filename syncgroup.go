@@ -66,6 +66,83 @@ func (t groupAssignment) bytes() []byte {
 	return buf.Bytes()
 }
 
+type syncGroupRequestGroupAssignmentV0 struct {
+	// MemberID assigned by the group coordinator
+	MemberID string
+
+	// MemberAssignments holds client encoded assignments
+	//
+	// See consumer groups section of https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol
+	MemberAssignments []byte
+}
+
+func (t syncGroupRequestGroupAssignmentV0) size() int32 {
+	return sizeofString(t.MemberID) +
+		sizeofBytes(t.MemberAssignments)
+}
+
+func (t syncGroupRequestGroupAssignmentV0) writeTo(w *bufio.Writer) {
+	writeString(w, t.MemberID)
+	writeBytes(w, t.MemberAssignments)
+}
+
+type syncGroupRequestV0 struct {
+	// GroupID holds the unique group identifier
+	GroupID string
+
+	// GenerationID holds the generation of the group.
+	GenerationID int32
+
+	// MemberID assigned by the group coordinator
+	MemberID string
+
+	GroupAssignments []syncGroupRequestGroupAssignmentV0
+}
+
+func (t syncGroupRequestV0) size() int32 {
+	return sizeofString(t.GroupID) +
+		sizeofInt32(t.GenerationID) +
+		sizeofString(t.MemberID) +
+		sizeofArray(len(t.GroupAssignments), func(i int) int32 { return t.GroupAssignments[i].size() })
+}
+
+func (t syncGroupRequestV0) writeTo(w *bufio.Writer) {
+	writeString(w, t.GroupID)
+	writeInt32(w, t.GenerationID)
+	writeString(w, t.MemberID)
+	writeArray(w, len(t.GroupAssignments), func(i int) { t.GroupAssignments[i].writeTo(w) })
+}
+
+type syncGroupResponseV0 struct {
+	// ErrorCode holds response error code
+	ErrorCode int16
+
+	// MemberAssignments holds client encoded assignments
+	//
+	// See consumer groups section of https://cwiki.apache.org/confluence/display/KAFKA/A+Guide+To+The+Kafka+Protocol
+	MemberAssignments []byte
+}
+
+func (t syncGroupResponseV0) size() int32 {
+	return sizeofInt16(t.ErrorCode) +
+		sizeofBytes(t.MemberAssignments)
+}
+
+func (t syncGroupResponseV0) writeTo(w *bufio.Writer) {
+	writeInt16(w, t.ErrorCode)
+	writeBytes(w, t.MemberAssignments)
+}
+
+func (t *syncGroupResponseV0) readFrom(r *bufio.Reader, size int) (remain int, err error) {
+	if remain, err = readInt16(r, size, &t.ErrorCode); err != nil {
+		return
+	}
+	if remain, err = readBytes(r, remain, &t.MemberAssignments); err != nil {
+		return
+	}
+	return
+}
+
 type syncGroupRequestGroupAssignmentV1 struct {
 	// MemberID assigned by the group coordinator
 	MemberID string
@@ -140,8 +217,8 @@ func (t syncGroupResponseV1) writeTo(w *bufio.Writer) {
 	writeBytes(w, t.MemberAssignments)
 }
 
-func (t *syncGroupResponseV1) readFrom(r *bufio.Reader, sz int) (remain int, err error) {
-	if remain, err = readInt32(r, sz, &t.ThrottleTimeMS); err != nil {
+func (t *syncGroupResponseV1) readFrom(r *bufio.Reader, size int) (remain int, err error) {
+	if remain, err = readInt32(r, size, &t.ThrottleTimeMS); err != nil {
 		return
 	}
 	if remain, err = readInt16(r, remain, &t.ErrorCode); err != nil {
