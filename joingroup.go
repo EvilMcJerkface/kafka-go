@@ -171,7 +171,7 @@ func (t joinGroupResponseV1) writeTo(w *bufio.Writer) {
 }
 
 func (t *joinGroupResponseV1) readFrom(r *bufio.Reader, size int) (remain int, err error) {
-	if remain, err = readInt16(r, remain, &t.ErrorCode); err != nil {
+	if remain, err = readInt16(r, size, &t.ErrorCode); err != nil {
 		return
 	}
 	if remain, err = readInt32(r, remain, &t.GenerationID); err != nil {
