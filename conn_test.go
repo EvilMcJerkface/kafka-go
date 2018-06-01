@@ -520,11 +520,11 @@ func createGroup(t *testing.T, conn *Conn, groupID string) (generationID int32, 
 	group := join()
 
 	// sync the group
-	_, err := conn.syncGroups(syncGroupRequestV1{
+	_, err := conn.syncGroup(syncGroupConfig{
 		GroupID:      groupID,
 		GenerationID: group.GenerationID,
 		MemberID:     group.MemberID,
-		GroupAssignments: []syncGroupRequestGroupAssignmentV1{
+		GroupAssignments: []syncGroupAssigmentsConfig{
 			{
 				MemberID:          group.MemberID,
 				MemberAssignments: []byte("blah"),
@@ -630,7 +630,7 @@ func testConnHeartbeatErr(t *testing.T, conn *Conn) {
 	groupID := makeGroupID()
 	createGroup(t, conn, groupID)
 
-	_, err := conn.syncGroups(syncGroupRequestV1{
+	_, err := conn.syncGroup(syncGroupConfig{
 		GroupID: groupID,
 	})
 	if err != UnknownMemberId && err != NotCoordinatorForGroup {
@@ -652,7 +652,7 @@ func testConnSyncGroupErr(t *testing.T, conn *Conn) {
 	groupID := makeGroupID()
 	waitForCoordinator(t, conn, groupID)
 
-	_, err := conn.syncGroups(syncGroupRequestV1{
+	_, err := conn.syncGroup(syncGroupConfig{
 		GroupID: groupID,
 	})
 	if err != UnknownMemberId && err != NotCoordinatorForGroup {

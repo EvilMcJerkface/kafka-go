@@ -8,6 +8,18 @@ import (
 // memberGroupAssignments holds MemberID => topic => partitions
 type memberGroupAssignments map[string]map[string][]int32
 
+type syncGroupConfig struct {
+	GroupID          string
+	GenerationID     int32
+	MemberID         string
+	GroupAssignments []syncGroupAssigmentsConfig
+}
+
+type syncGroupAssigmentsConfig struct {
+	MemberID          string
+	MemberAssignments []byte
+}
+
 type groupAssignment struct {
 	Version  int16
 	Topics   map[string][]int32

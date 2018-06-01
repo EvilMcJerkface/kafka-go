@@ -346,19 +346,19 @@ func (r *Reader) joinGroup() (memberGroupAssignments, error) {
 	return assignments, nil
 }
 
-func (r *Reader) makeSyncGroupRequestV1(memberAssignments memberGroupAssignments) syncGroupRequestV1 {
+func (r *Reader) makeSyncGroupConfig(memberAssignments memberGroupAssignments) syncGroupConfig {
 	generationID, memberID := r.membership()
-	request := syncGroupRequestV1{
+	config := syncGroupConfig{
 		GroupID:      r.config.GroupID,
 		GenerationID: generationID,
 		MemberID:     memberID,
 	}
 
 	if memberAssignments != nil {
-		request.GroupAssignments = make([]syncGroupRequestGroupAssignmentV1, 0, 1)
+		config.GroupAssignments = make([]syncGroupAssigmentsConfig, 0, 1)
 
 		for memberID, topics := range memberAssignments {
-			request.GroupAssignments = append(request.GroupAssignments, syncGroupRequestGroupAssignmentV1{
+			config.GroupAssignments = append(config.GroupAssignments, syncGroupAssigmentsConfig{
 				MemberID: memberID,
 				MemberAssignments: groupAssignment{
 					Version: 1,
@@ -368,7 +368,7 @@ func (r *Reader) makeSyncGroupRequestV1(memberAssignments memberGroupAssignments
 		}
 	}
 
-	return request
+	return config
 }
 
 // syncGroup completes the consumer group handshake by accepting the
@@ -388,8 +388,8 @@ func (r *Reader) syncGroup(memberAssignments memberGroupAssignments) (map[string
 	}
 	defer conn.Close()
 
-	request := r.makeSyncGroupRequestV1(memberAssignments)
-	response, err := conn.syncGroups(request)
+	config := r.makeSyncGroupConfig(memberAssignments)
+	assignments, err := conn.syncGroup(config)
 	if err != nil {
 		switch err {
 		case RebalanceInProgress:
@@ -407,13 +407,6 @@ func (r *Reader) syncGroup(memberAssignments memberGroupAssignments) (map[string
 			_ = r.leaveGroup(conn)
 			return nil, fmt.Errorf("syncGroup failed: %v", err)
 		}
-	}
-
-	assignments := groupAssignment{}
-	reader := bufio.NewReader(bytes.NewReader(response.MemberAssignments))
-	if _, err := (&assignments).readFrom(reader, len(response.MemberAssignments)); err != nil {
-		_ = r.leaveGroup(conn)
-		return nil, fmt.Errorf("unable to read SyncGroup response for group, %v: %v\n", r.config.GroupID, err)
 	}
 
 	r.withLogger(func(l *log.Logger) {

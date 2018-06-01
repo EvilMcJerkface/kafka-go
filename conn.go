@@ -2,6 +2,7 @@ package kafka
 
 import (
 	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"math"
@@ -572,10 +573,70 @@ func (c *Conn) offsetFetch(request offsetFetchRequestV3) (offsetFetchResponseV3,
 	return response, nil
 }
 
-// syncGroups completes the handshake to join a consumer group
+// syncGroup completes the handshake to join a consumer group
 //
 // See http://kafka.apache.org/protocol.html#The_Messages_SyncGroup
-func (c *Conn) syncGroups(request syncGroupRequestV1) (syncGroupResponseV1, error) {
+func (c *Conn) syncGroup(config syncGroupConfig) (groupAssignment, error) {
+	assignment := groupAssignment{}
+
+	syncGroupApiVersion, err := c.apiVersion(syncGroupRequest)
+	if err != nil {
+		return assignment, err
+	}
+
+	var reader *bufio.Reader
+	var assigmentSize int
+	switch {
+	case syncGroupApiVersion >= v1:
+		var groupAssignments []syncGroupRequestGroupAssignmentV1
+		for _, assignment := range config.GroupAssignments {
+			groupAssignments = append(groupAssignments, syncGroupRequestGroupAssignmentV1{
+				MemberID:          assignment.MemberID,
+				MemberAssignments: assignment.MemberAssignments,
+			})
+		}
+
+		response, err := c.syncGroupV1(syncGroupRequestV1{
+			GroupID:          config.GroupID,
+			MemberID:         config.MemberID,
+			GenerationID:     config.GenerationID,
+			GroupAssignments: groupAssignments,
+		})
+		if err != nil {
+			return assignment, err
+		}
+		reader = bufio.NewReader(bytes.NewReader(response.MemberAssignments))
+		assigmentSize = len(response.MemberAssignments)
+	default:
+		var groupAssignments []syncGroupRequestGroupAssignmentV0
+		for _, assignment := range config.GroupAssignments {
+			groupAssignments = append(groupAssignments, syncGroupRequestGroupAssignmentV0{
+				MemberID:          assignment.MemberID,
+				MemberAssignments: assignment.MemberAssignments,
+			})
+		}
+
+		response, err := c.syncGroupV0(syncGroupRequestV0{
+			GroupID:          config.GroupID,
+			MemberID:         config.MemberID,
+			GenerationID:     config.GenerationID,
+			GroupAssignments: groupAssignments,
+		})
+		if err != nil {
+			return assignment, err
+		}
+		reader = bufio.NewReader(bytes.NewReader(response.MemberAssignments))
+		assigmentSize = len(response.MemberAssignments)
+	}
+
+	_, err = (&assignment).readFrom(reader, assigmentSize)
+	if err != nil {
+		return assignment, fmt.Errorf("unable to read SyncGroup response for group, %v: %v\n", config.GroupID, err)
+	}
+	return assignment, err
+}
+
+func (c *Conn) syncGroupV1(request syncGroupRequestV1) (syncGroupResponseV1, error) {
 	var response syncGroupResponseV1
 
 	err := c.readOperation(
@@ -593,6 +654,29 @@ func (c *Conn) syncGroups(request syncGroupRequestV1) (syncGroupResponseV1, erro
 	}
 	if response.ErrorCode != 0 {
 		return syncGroupResponseV1{}, Error(response.ErrorCode)
+	}
+
+	return response, nil
+}
+
+func (c *Conn) syncGroupV0(request syncGroupRequestV0) (syncGroupResponseV0, error) {
+	var response syncGroupResponseV0
+
+	err := c.readOperation(
+		func(deadline time.Time, id int32) error {
+			return c.writeRequest(syncGroupRequest, v0, id, request)
+		},
+		func(deadline time.Time, size int) error {
+			return expectZeroSize(func() (remain int, err error) {
+				return (&response).readFrom(&c.rbuf, size)
+			}())
+		},
+	)
+	if err != nil {
+		return syncGroupResponseV0{}, err
+	}
+	if response.ErrorCode != 0 {
+		return syncGroupResponseV0{}, Error(response.ErrorCode)
 	}
 
 	return response, nil
